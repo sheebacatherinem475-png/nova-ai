@@ -20,3 +20,8 @@ passlib[bcrypt]
 psycopg2-binary
 alembic
 email-validator
+pytest
+pytest-asyncio
+httpx
+ruff
+pip-audit

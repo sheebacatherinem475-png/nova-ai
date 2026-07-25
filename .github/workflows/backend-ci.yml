@@ -1,0 +1,70 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: nova
+          POSTGRES_PASSWORD: nova_password
+          POSTGRES_DB: nova_ai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        cache: "pip"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Ruff Linting
+      run: ruff check .
+
+    - name: Run Pytest
+      env:
+        DATABASE_URL: postgresql://nova:nova_password@localhost:5432/nova_ai
+        SECRET_KEY: test-secret-key
+      run: |
+        alembic upgrade head
+        pytest
+
+    - name: Dependency Vulnerability Scan (pip-audit)
+      run: pip-audit
+
+    - name: Build Docker Image
+      run: docker build -t nova-backend:test .
+
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'nova-backend:test'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
