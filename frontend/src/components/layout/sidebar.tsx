@@ -12,7 +12,9 @@ import {
   Pin,
   Pencil,
   Trash2,
-  FileText
+  FileText,
+  Database,
+  Settings as SettingsIcon
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DocumentManager } from "@/components/chat/document-manager"
+import { DatasetManager } from "@/components/chat/dataset-manager"
 import { SettingsModal } from "@/components/chat/settings-modal"
 
 const mainNavigation = [
@@ -51,6 +54,7 @@ export function Sidebar({ className }: SidebarProps) {
   const [editTitle, setEditTitle] = React.useState("")
   const editInputRef = React.useRef<HTMLInputElement>(null)
   const [isDocsOpen, setIsDocsOpen] = React.useState(false)
+  const [isDatasetOpen, setIsDatasetOpen] = React.useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -140,6 +144,20 @@ export function Sidebar({ className }: SidebarProps) {
             >
               <FileText className="mr-2 h-4 w-4" />
               Documents
+            </button>
+            <button
+              onClick={() => setIsDatasetOpen(true)}
+              className="inline-flex h-10 w-full items-center justify-start rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground text-left"
+            >
+              <Database className="mr-2 h-4 w-4" />
+              Datasets
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="inline-flex h-10 w-full items-center justify-start rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground text-left"
+            >
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              Settings
             </button>
           </div>
         </div>
@@ -239,6 +257,7 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </div>
       <DocumentManager isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
+      <DatasetManager isOpen={isDatasetOpen} onClose={() => setIsDatasetOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   )

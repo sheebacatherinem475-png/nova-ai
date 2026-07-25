@@ -2,11 +2,26 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { v4 as uuidv4 } from "uuid"
 
+export interface ImageAttachment {
+  id: string;
+  url: string;
+  filename: string;
+}
+
+export interface DatasetMeta {
+  id: string
+  filename: string
+  size: number
+  upload_time: string
+  summary: Record<string, unknown>
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "model"
   content: string
   timestamp: number
+  images?: ImageAttachment[]
 }
 
 export interface Chat {
@@ -21,6 +36,8 @@ export interface Chat {
 interface ChatState {
   chats: Chat[]
   activeChatId: string | null
+  datasets: DatasetMeta[]
+  activeDatasetId: string | null
   searchQuery: string
   voiceAutoRead: boolean
   selectedVoice: string
@@ -36,6 +53,10 @@ interface ChatState {
   pinChat: (id: string) => void
   addMessage: (chatId: string, message: Omit<ChatMessage, "id" | "timestamp">) => string
   updateMessage: (chatId: string, messageId: string, content: string) => void
+  setDatasets: (datasets: DatasetMeta[]) => void
+  setActiveDataset: (id: string | null) => void
+  addDataset: (dataset: DatasetMeta) => void
+  removeDataset: (id: string) => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -43,6 +64,8 @@ export const useChatStore = create<ChatState>()(
     (set) => ({
       chats: [],
       activeChatId: null,
+      datasets: [],
+      activeDatasetId: null,
       searchQuery: "",
       voiceAutoRead: false,
       selectedVoice: "en-US-JennyNeural",
@@ -133,6 +156,14 @@ export const useChatStore = create<ChatState>()(
               }
             : c
         ),
+      })),
+      
+      setDatasets: (datasets) => set({ datasets }),
+      setActiveDataset: (id) => set({ activeDatasetId: id }),
+      addDataset: (dataset) => set((state) => ({ datasets: [dataset, ...state.datasets] })),
+      removeDataset: (id) => set((state) => ({ 
+        datasets: state.datasets.filter(d => d.id !== id),
+        activeDatasetId: state.activeDatasetId === id ? null : state.activeDatasetId
       })),
     }),
     {

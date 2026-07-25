@@ -1,5 +1,7 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.routes import router as api_router
 from app.core.database import init_db
@@ -24,3 +26,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+
+os.makedirs("uploads/images", exist_ok=True)
+app.mount("/uploads/images", StaticFiles(directory="uploads/images"), name="images")

@@ -1,6 +1,7 @@
 export interface ChatMessage {
   role: "user" | "model"
   content: string
+  images?: { id: string, url: string, filename: string }[]
 }
 
 export interface DocumentMeta {
@@ -8,6 +9,14 @@ export interface DocumentMeta {
   filename: string
   size: number
   upload_time: string
+}
+
+export interface UploadDatasetResponse {
+  id: string;
+  filename: string;
+  size: number;
+  upload_time: string;
+  summary: Record<string, unknown>;
 }
 
 export class ApiClient {
@@ -27,6 +36,72 @@ export class ApiClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ message, history }),
+      signal
+    })
+
+    if (!res.ok) {
+      let errorDetail = "Failed to connect to the backend."
+      try {
+        const errorData = await res.json()
+        if (errorData.detail) errorDetail = errorData.detail
+      } catch {
+        // ignore
+      }
+      throw new Error(errorDetail)
+    }
+
+    if (!res.body) throw new Error("No response body")
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder("utf-8")
+    let buffer = ""
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6)
+            try {
+              const data = JSON.parse(dataStr)
+              if (data.error) {
+                throw new Error(data.error)
+              }
+              if (data.chunk) {
+                onChunk(data.chunk)
+              }
+            } catch (e) {
+              if (e instanceof Error && !e.message.includes("JSON")) {
+                throw e
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  static async streamImageAnalysis(
+    message: string, 
+    history: ChatMessage[], 
+    images: { id: string, url: string, filename: string }[],
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/analyze`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, history, images }),
       signal
     })
 
@@ -107,10 +182,115 @@ export class ApiClient {
     })
   }
 
+  static async uploadImages(files: File[], onProgress?: (progress: number) => void): Promise<{ id: string, url: string, filename: string }[]> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open("POST", `${this.baseUrl}/api/images/upload`, true)
+      
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress(Math.round((event.loaded * 100) / event.total))
+        }
+      }
+      
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText))
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText)
+            reject(new Error(err.detail || "Upload failed"))
+          } catch {
+            reject(new Error(`Upload failed: ${xhr.statusText}`))
+          }
+        }
+      }
+      
+      xhr.onerror = () => reject(new Error("Network Error"))
+      
+      const formData = new FormData()
+      files.forEach(file => formData.append("files", file))
+      xhr.send(formData)
+    })
+  }
+
   static async getDocuments(): Promise<DocumentMeta[]> {
     const res = await fetch(`${this.baseUrl}/api/documents`)
     if (!res.ok) throw new Error("Failed to fetch documents")
     return res.json()
+  }
+
+  static async uploadDataset(file: File): Promise<UploadDatasetResponse> {
+    const formData = new FormData()
+    formData.append("file", file)
+    const res = await fetch(`${this.baseUrl}/api/datasets/upload`, {
+      method: "POST",
+      body: formData
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "Failed to upload dataset")
+    }
+    return res.json()
+  }
+
+  static async listDatasets(): Promise<UploadDatasetResponse[]> {
+    const res = await fetch(`${this.baseUrl}/api/datasets`)
+    if (!res.ok) throw new Error("Failed to fetch datasets")
+    return res.json()
+  }
+
+  static async deleteDataset(id: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/datasets/${id}`, { method: "DELETE" })
+    if (!res.ok) throw new Error("Failed to delete dataset")
+  }
+
+  static async streamDataAnalysis(
+    message: string, 
+    history: {role: string, content: string}[], 
+    datasetId: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
+  ) {
+    const res = await fetch(`${this.baseUrl}/api/data-analysis/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history, dataset_id: datasetId }),
+      signal
+    })
+    
+    if (!res.ok) {
+      throw new Error(`Data analysis failed: ${res.statusText}`)
+    }
+    
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    if (!reader) return
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      const chunkStr = decoder.decode(value, { stream: true })
+      const lines = chunkStr.split("\n")
+      
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6)
+          try {
+            const data = JSON.parse(dataStr)
+            if (data.chunk) {
+              onChunk(data.chunk)
+            } else if (data.error) {
+              console.error("Data analysis error:", data.error)
+              throw new Error(data.error)
+            }
+          } catch {
+            // ignore parse errors for incomplete chunks
+          }
+        }
+      }
+    }
   }
 
   static async getVoices() {
