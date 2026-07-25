@@ -324,4 +324,23 @@ export class ApiClient {
     })
     if (!res.ok) throw new Error("Failed to delete document")
   }
+
+  static async getDatasetInsights(datasetId: string) {
+    const res = await fetch(`${this.baseUrl}/api/data-analysis/insights/${datasetId}`)
+    if (!res.ok) throw new Error('Failed to fetch insights')
+    return res.json()
+  }
+
+  static async filterDataset(datasetId: string, query: string) {
+    const res = await fetch(`${this.baseUrl}/api/datasets/${datasetId}/filter`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.detail || 'Filter failed')
+    }
+    return res.json()
+  }
 }

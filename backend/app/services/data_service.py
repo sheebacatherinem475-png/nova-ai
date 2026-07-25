@@ -3,9 +3,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
-import pandas as pd
 import json
+import uuid
+import pandas as pd
+from functools import lru_cache
 from app.core.database import add_dataset, delete_dataset, get_dataset
+from app.services.query_validator import validate_query
 
 DATASETS_DIR = Path("uploads/datasets")
 DATASETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -30,14 +33,7 @@ async def process_and_save_dataset(file: UploadFile) -> dict:
         f.write(contents)
         
     try:
-        if ext == ".csv":
-            df = pd.read_csv(file_path)
-        elif ext == ".json":
-            df = pd.read_json(file_path)
-        elif ext == ".xlsx":
-            df = pd.read_excel(file_path)
-        else:
-            raise ValueError("Unknown format")
+        df = _load_dataframe(file_path, ext)
             
         summary = _generate_summary(df)
         
@@ -57,6 +53,17 @@ async def process_and_save_dataset(file: UploadFile) -> dict:
         if file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=400, detail=f"Failed to process dataset: {str(e)}")
+
+@lru_cache(maxsize=5)
+def _load_dataframe(file_path: Path, ext: str) -> pd.DataFrame:
+    if ext == ".csv":
+        return pd.read_csv(file_path)
+    elif ext == ".json":
+        return pd.read_json(file_path)
+    elif ext == ".xlsx":
+        return pd.read_excel(file_path)
+    else:
+        raise ValueError("Unknown format")
 
 def _generate_summary(df: pd.DataFrame) -> dict:
     row_count, col_count = df.shape
@@ -136,3 +143,55 @@ def get_dataset_context(dataset_id: str) -> str:
         context += json.dumps(summary["correlation"], indent=2) + "\n"
         
     return context
+
+def apply_filter(dataset_id: str, query: str) -> dict:
+    ds = get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    summary = json.loads(ds["summary"])
+    allowed_cols = [c["name"] for c in summary["columns"]]
+    
+    is_valid, errors = validate_query(query, allowed_cols)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid filter query: {'; '.join(errors)}")
+        
+    df = _load_dataframe(Path(ds["local_path"]), os.path.splitext(ds["local_path"])[1].lower())
+    
+    try:
+        filtered_df = df.query(query)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error applying filter: {str(e)}")
+        
+    if filtered_df.empty:
+        raise HTTPException(status_code=400, detail="Filter resulted in an empty dataset")
+        
+    # Save virtual dataset
+    file_id = str(uuid.uuid4())
+    safe_filename = f"{file_id}.json"
+    file_path = DATASETS_DIR / safe_filename
+    
+    # Store as json for type preservation
+    filtered_df.to_json(file_path, orient="records")
+    
+    new_summary = _generate_summary(filtered_df)
+    upload_time = ds["upload_time"] # Keep original upload time for order? Or new? Let's use new
+    upload_time = datetime.utcnow().isoformat() + "Z"
+    
+    add_dataset(file_id, f"{ds['filename']} (Filtered)", len(filtered_df), upload_time, json.dumps(new_summary), str(file_path))
+    
+    return {
+        "id": file_id,
+        "filename": f"{ds['filename']} (Filtered)",
+        "size": len(filtered_df),
+        "upload_time": upload_time,
+        "summary": new_summary
+    }
+
+insights_cache = {}
+
+def get_insights_from_cache(dataset_id: str):
+    return insights_cache.get(dataset_id)
+
+def set_insights_to_cache(dataset_id: str, insights: dict):
+    insights_cache[dataset_id] = insights

@@ -6,7 +6,7 @@ from typing import List, Optional
 from google import genai
 from google.genai import types
 from app.core.config import settings
-from app.services.data_service import get_dataset_context
+from app.services.data_service import get_dataset_context, get_insights_from_cache, set_insights_to_cache
 
 router = APIRouter()
 
@@ -84,3 +84,45 @@ Dataset Information:
     except Exception as e:
         print(f"Error in data analyze endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/insights/{dataset_id}")
+async def generate_dataset_insights(dataset_id: str):
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "placeholder_key_replace_me":
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured.")
+        
+    cached = get_insights_from_cache(dataset_id)
+    if cached:
+        return cached
+        
+    try:
+        dataset_context = get_dataset_context(dataset_id)
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        
+        prompt = f"""Analyze this dataset and provide a high-level summary of key insights.
+Format the output as a JSON object with this exact structure:
+{{
+  "summary": "A 2-3 sentence overview of what this dataset contains",
+  "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"],
+  "recommended_charts": [
+    {{"type": "bar", "description": "Bar chart showing X by Y"}}
+  ]
+}}
+
+Dataset Context:
+{dataset_context}
+"""
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            )
+        )
+        
+        result = json.loads(response.text)
+        set_insights_to_cache(dataset_id, result)
+        return result
+        
+    except Exception as e:
+        print(f"Error generating insights: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")

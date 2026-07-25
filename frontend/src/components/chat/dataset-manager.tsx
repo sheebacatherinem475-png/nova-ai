@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils"
 export function DatasetManager({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { datasets, setDatasets, activeDatasetId, setActiveDataset, addDataset, removeDataset } = useChatStore()
   const [isUploading, setIsUploading] = React.useState(false)
+  const [insights, setInsights] = React.useState<Record<string, Record<string, unknown>>>({})
+  const [loadingInsights, setLoadingInsights] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (isOpen) {
@@ -64,6 +66,26 @@ export function DatasetManager({ isOpen, onClose }: { isOpen: boolean; onClose: 
     } catch {
       toast.error("Failed to delete dataset")
     }
+  }
+
+  const handleGenerateInsights = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setLoadingInsights(id)
+    try {
+      const result = await ApiClient.getDatasetInsights(id)
+      setInsights(prev => ({ ...prev, [id]: result }))
+      toast.success("Insights generated successfully")
+    } catch (error: unknown) {
+      const err = error as Error
+      toast.error(err.message || "Failed to generate insights")
+    } finally {
+      setLoadingInsights(null)
+    }
+  }
+
+  const handleDownload = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    window.open(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}/api/datasets/${id}/download`, '_blank')
   }
 
   if (!isOpen) return null
@@ -146,8 +168,16 @@ export function DatasetManager({ isOpen, onClose }: { isOpen: boolean; onClose: 
                             <div className="flex items-center gap-2 shrink-0">
                               {isActive && <CheckCircle2 className="h-5 w-5 text-indigo-400" />}
                               <button
-                                className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors ml-2 opacity-0 group-hover:opacity-100"
+                                className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-700 rounded-lg transition-colors ml-2 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => handleDownload(ds.id, e)}
+                                title="Download Dataset"
+                              >
+                                <UploadCloud className="h-4 w-4 rotate-180" />
+                              </button>
+                              <button
+                                className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                 onClick={(e) => handleDelete(ds.id, e)}
+                                title="Delete Dataset"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -163,6 +193,41 @@ export function DatasetManager({ isOpen, onClose }: { isOpen: boolean; onClose: 
                               {(ds.summary.columns as { name: string }[]).length > 5 && <span>...</span>}
                             </div>
                           ) : null}
+
+                          {/* Insights Section */}
+                          {isActive && (
+                            <div className="mt-4 pt-4 border-t border-white/10">
+                              {!insights[ds.id] ? (
+                                <button
+                                  onClick={(e) => handleGenerateInsights(ds.id, e)}
+                                  disabled={loadingInsights === ds.id}
+                                  className="w-full py-2 bg-indigo-500/20 text-indigo-300 rounded hover:bg-indigo-500/30 transition flex items-center justify-center gap-2 text-sm"
+                                >
+                                  {loadingInsights === ds.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                                  {loadingInsights === ds.id ? 'Analyzing...' : 'Generate AI Insights'}
+                                </button>
+                              ) : (
+                                <div className="space-y-3 bg-black/20 p-3 rounded-lg border border-white/5">
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1">Summary</h4>
+                                    <p className="text-sm text-zinc-400">{String(insights[ds.id].summary)}</p>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1">Highlights</h4>
+                                    <ul className="list-disc pl-4 text-sm text-zinc-400 space-y-1">
+                                      {((insights[ds.id].highlights as string[]) || []).map((h: string, i: number) => <li key={i}>{h}</li>)}
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1">Recommended Charts</h4>
+                                    <ul className="list-disc pl-4 text-sm text-zinc-400 space-y-1">
+                                      {((insights[ds.id].recommended_charts as Record<string, unknown>[]) || []).map((rc, i: number) => <li key={i}>{String(rc.description)} ({String(rc.type)})</li>)}
+                                    </ul>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </motion.div>
                       )
                     })}

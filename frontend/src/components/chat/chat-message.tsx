@@ -4,20 +4,20 @@ import * as React from "react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism"
-import { BarChart, Bar, LineChart, Line, ScatterChart, Scatter, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+
 import { User, Bot, Copy, Check, RotateCcw, Volume2, Square, Loader2, Download } from "lucide-react"
 import { toast } from "sonner"
 import { ChatMessage as IChatMessage, useChatStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useTTS } from "@/hooks/use-tts"
+import { InteractiveChart } from "./interactive-chart"
+import { DataDashboard } from "./data-dashboard"
 
 interface ChatMessageProps {
   message: IChatMessage
   onRegenerate?: () => void
 }
-
-const COLORS = ['#0ea5e9', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#6366f1']
 
 export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
   const [hasCopied, setHasCopied] = React.useState(false)
@@ -104,54 +104,28 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
                     try {
                       const config = JSON.parse(codeText)
                       return (
-                        <div className="w-full h-[300px] my-4 p-4 bg-background border rounded-xl shadow-sm">
-                          {config.title && <h4 className="text-center font-medium mb-4 text-foreground">{config.title}</h4>}
-                          <ResponsiveContainer width="100%" height="100%">
-                            {config.type === "bar" ? (
-                              <BarChart data={config.data}>
-                                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                <XAxis dataKey={config.xKey} stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} opacity={0.5} />
-                                <YAxis stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} opacity={0.5} />
-                                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }} />
-                                <Legend />
-                                <Bar dataKey={config.yKey} fill={COLORS[0]} radius={[4, 4, 0, 0]} />
-                              </BarChart>
-                            ) : config.type === "line" ? (
-                              <LineChart data={config.data}>
-                                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                <XAxis dataKey={config.xKey} stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} opacity={0.5} />
-                                <YAxis stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} opacity={0.5} />
-                                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }} />
-                                <Legend />
-                                <Line type="monotone" dataKey={config.yKey} stroke={COLORS[1]} strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                              </LineChart>
-                            ) : config.type === "scatter" ? (
-                              <ScatterChart>
-                                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                <XAxis dataKey={config.xKey} name={config.xKey} stroke="currentColor" fontSize={12} opacity={0.5} />
-                                <YAxis dataKey={config.yKey} name={config.yKey} stroke="currentColor" fontSize={12} opacity={0.5} />
-                                <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }} />
-                                <Scatter name={config.title || "Data"} data={config.data} fill={COLORS[2]} />
-                              </ScatterChart>
-                            ) : config.type === "pie" ? (
-                              <PieChart>
-                                <Pie data={config.data} dataKey={config.yKey} nameKey={config.xKey} cx="50%" cy="50%" outerRadius={80} label>
-                                  {config.data.map((_: unknown, index: number) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                  ))}
-                                </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }} />
-                                <Legend />
-                              </PieChart>
-                            ) : (
-                              <div className="flex items-center justify-center h-full text-muted-foreground">Unsupported chart type: {config.type}</div>
-                            )}
-                          </ResponsiveContainer>
-                        </div>
+                        <InteractiveChart 
+                          initialType={config.type} 
+                          data={config.data} 
+                          initialXKey={config.xKey} 
+                          initialYKey={config.yKey} 
+                          title={config.title} 
+                        />
                       )
                     } catch (e) {
                       console.error("Failed to parse chart JSON", e)
                       return <div className="text-destructive bg-destructive/10 p-4 rounded-xl border border-destructive/20 my-4 text-sm font-mono">Failed to render chart: Invalid JSON format</div>
+                    }
+                  }
+                  
+                  if (language === "dashboard") {
+                    try {
+                      const charts = JSON.parse(codeText)
+                      if (!Array.isArray(charts)) throw new Error("Dashboard config must be an array")
+                      return <DataDashboard charts={charts} />
+                    } catch (e) {
+                      console.error("Failed to parse dashboard JSON", e)
+                      return <div className="text-destructive bg-destructive/10 p-4 rounded-xl border border-destructive/20 my-4 text-sm font-mono">Failed to render dashboard: Invalid JSON format</div>
                     }
                   }
 

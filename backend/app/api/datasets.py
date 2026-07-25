@@ -1,8 +1,9 @@
 import json
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from typing import List
-from app.services.data_service import process_and_save_dataset, remove_dataset
+from app.services.data_service import process_and_save_dataset, remove_dataset, apply_filter
 from app.core.database import get_all_datasets, get_dataset
+from fastapi.responses import FileResponse
 
 router = APIRouter()
 
@@ -31,3 +32,19 @@ async def fetch_dataset(dataset_id: str):
 async def delete_dataset_endpoint(dataset_id: str):
     remove_dataset(dataset_id)
     return {"status": "ok"}
+
+from pydantic import BaseModel
+class FilterRequest(BaseModel):
+    query: str
+
+@router.post("/{dataset_id}/filter")
+async def filter_dataset_endpoint(dataset_id: str, request: FilterRequest):
+    result = apply_filter(dataset_id, request.query)
+    return result
+
+@router.get("/{dataset_id}/download")
+async def download_dataset_endpoint(dataset_id: str):
+    ds = get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    return FileResponse(ds["local_path"], filename=ds["filename"])
