@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { 
   Home, 
   Settings, 
@@ -14,7 +14,8 @@ import {
   Trash2,
   FileText,
   Database,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  LogOut
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -47,8 +48,10 @@ export function Sidebar({ className }: SidebarProps) {
     setActiveChat,
     deleteChat,
     pinChat,
-    renameChat
+    renameChat,
+    setToken
   } = useChatStore()
+  const router = useRouter()
   
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [editTitle, setEditTitle] = React.useState("")
@@ -158,6 +161,16 @@ export function Sidebar({ className }: SidebarProps) {
             >
               <SettingsIcon className="mr-2 h-4 w-4" />
               Settings
+            </button>
+            <button
+              onClick={() => {
+                setToken(null);
+                router.push("/login");
+              }}
+              className="inline-flex h-10 w-full items-center justify-start rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-red-900/50 hover:text-red-400 text-left"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
             </button>
           </div>
         </div>

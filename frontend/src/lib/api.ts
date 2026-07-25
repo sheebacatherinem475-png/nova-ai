@@ -4,6 +4,8 @@ export interface ChatMessage {
   images?: { id: string, url: string, filename: string }[]
 }
 
+import { useChatStore } from "./store"
+
 export interface DocumentMeta {
   id: string
   filename: string
@@ -24,6 +26,17 @@ export class ApiClient {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
   }
 
+  private static getHeaders(extraHeaders: Record<string, string> = {}) {
+    const headers: Record<string, string> = { ...extraHeaders }
+    
+    // We can access the state since we imported it.
+    const token = useChatStore.getState().token;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    return headers
+  }
+
   static async streamChat(
     message: string, 
     history: ChatMessage[], 
@@ -32,9 +45,9 @@ export class ApiClient {
   ): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
-      headers: {
+      headers: this.getHeaders({
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify({ message, history }),
       signal
     })
@@ -98,9 +111,9 @@ export class ApiClient {
   ): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/images/analyze`, {
       method: "POST",
-      headers: {
+      headers: this.getHeaders({
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify({ message, history, images }),
       signal
     })
@@ -159,6 +172,8 @@ export class ApiClient {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open("POST", `${this.baseUrl}/api/documents/upload`, true)
+      const token = useChatStore.getState().token
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
       
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable && onProgress) {
@@ -186,6 +201,8 @@ export class ApiClient {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open("POST", `${this.baseUrl}/api/images/upload`, true)
+      const token = useChatStore.getState().token
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
       
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable && onProgress) {
@@ -215,7 +232,7 @@ export class ApiClient {
   }
 
   static async getDocuments(): Promise<DocumentMeta[]> {
-    const res = await fetch(`${this.baseUrl}/api/documents`)
+    const res = await fetch(`${this.baseUrl}/api/documents`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to fetch documents")
     return res.json()
   }
@@ -225,6 +242,7 @@ export class ApiClient {
     formData.append("file", file)
     const res = await fetch(`${this.baseUrl}/api/datasets/upload`, {
       method: "POST",
+      headers: this.getHeaders(),
       body: formData
     })
     if (!res.ok) {
@@ -235,13 +253,13 @@ export class ApiClient {
   }
 
   static async listDatasets(): Promise<UploadDatasetResponse[]> {
-    const res = await fetch(`${this.baseUrl}/api/datasets`)
+    const res = await fetch(`${this.baseUrl}/api/datasets`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to fetch datasets")
     return res.json()
   }
 
   static async deleteDataset(id: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/datasets/${id}`, { method: "DELETE" })
+    const res = await fetch(`${this.baseUrl}/api/datasets/${id}`, { method: "DELETE", headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to delete dataset")
   }
 
@@ -254,7 +272,7 @@ export class ApiClient {
   ) {
     const res = await fetch(`${this.baseUrl}/api/data-analysis/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ message, history, dataset_id: datasetId }),
       signal
     })
@@ -294,7 +312,7 @@ export class ApiClient {
   }
 
   static async getVoices() {
-    const response = await fetch(`${this.baseUrl}/api/voice/voices`)
+    const response = await fetch(`${this.baseUrl}/api/voice/voices`, { headers: this.getHeaders() })
     if (!response.ok) {
       throw new Error(`Failed to fetch voices: ${response.statusText}`)
     }
@@ -304,9 +322,9 @@ export class ApiClient {
   static async generateTTS(text: string, voice: string = "en-US-JennyNeural", rate: string = "+0%") {
     const response = await fetch(`${this.baseUrl}/api/voice/tts`, {
       method: 'POST',
-      headers: {
+      headers: this.getHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({ text, voice, rate }),
     })
 
@@ -320,13 +338,14 @@ export class ApiClient {
 
   static async deleteDocument(docId: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/documents/${docId}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: this.getHeaders()
     })
     if (!res.ok) throw new Error("Failed to delete document")
   }
 
   static async getDatasetInsights(datasetId: string) {
-    const res = await fetch(`${this.baseUrl}/api/data-analysis/insights/${datasetId}`)
+    const res = await fetch(`${this.baseUrl}/api/data-analysis/insights/${datasetId}`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error('Failed to fetch insights')
     return res.json()
   }
@@ -334,13 +353,53 @@ export class ApiClient {
   static async filterDataset(datasetId: string, query: string) {
     const res = await fetch(`${this.baseUrl}/api/datasets/${datasetId}/filter`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ query }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.detail || 'Filter failed')
     }
+    return res.json()
+  }
+
+  static async login(email: string, password: string) {
+    const formData = new URLSearchParams()
+    formData.append('username', email)
+    formData.append('password', password)
+    
+    const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Login failed')
+    }
+    return res.json()
+  }
+
+  static async register(email: string, password: string) {
+    const res = await fetch(`${this.baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Registration failed')
+    }
+    return res.json()
+  }
+
+  static async getMe() {
+    const res = await fetch(`${this.baseUrl}/api/auth/me`, { headers: this.getHeaders() })
+    if (!res.ok) throw new Error('Failed to fetch user')
     return res.json()
   }
 }

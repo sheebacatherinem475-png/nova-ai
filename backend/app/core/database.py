@@ -1,10 +1,16 @@
 import sqlite3
 import os
 from contextlib import contextmanager
+from app.core.db_sqlalchemy import engine, Base
+import app.models.user  # Ensure models are loaded
 
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'documents.db')
 
 def init_db():
+    # Initialize SQLAlchemy tables (e.g. users)
+    Base.metadata.create_all(bind=engine)
+    
+    # Initialize sqlite3 tables (documents, datasets)
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''

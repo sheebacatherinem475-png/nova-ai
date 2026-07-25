@@ -13,3 +13,7 @@ python-docx
 pillow
 pandas
 openpyxl
+
+sqlalchemy
+python-jose[cryptography]
+passlib[bcrypt]

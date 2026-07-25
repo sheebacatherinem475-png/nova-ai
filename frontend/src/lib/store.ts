@@ -57,6 +57,10 @@ interface ChatState {
   setActiveDataset: (id: string | null) => void
   addDataset: (dataset: DatasetMeta) => void
   removeDataset: (id: string) => void
+  
+  // Auth
+  token: string | null
+  setToken: (token: string | null) => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -70,6 +74,7 @@ export const useChatStore = create<ChatState>()(
       voiceAutoRead: false,
       selectedVoice: "en-US-JennyNeural",
       speechRate: "+0%",
+      token: null,
       
       setVoiceAutoRead: (val) => set({ voiceAutoRead: val }),
       setSelectedVoice: (val) => set({ selectedVoice: val }),
@@ -165,6 +170,8 @@ export const useChatStore = create<ChatState>()(
         datasets: state.datasets.filter(d => d.id !== id),
         activeDatasetId: state.activeDatasetId === id ? null : state.activeDatasetId
       })),
+      
+      setToken: (token) => set({ token }),
     }),
     {
       name: "chat-storage",
