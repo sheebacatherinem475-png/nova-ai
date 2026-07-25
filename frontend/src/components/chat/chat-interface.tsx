@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Send, Square, Bot, Paperclip, Mic, MessageSquare, Code, FileText, Brain, PenTool, BarChart, Sparkles, X, Image as ImageIcon, Database } from "lucide-react"
+import { Send, Square, Bot, Paperclip, Mic, MessageSquare, Code, FileText, Brain, PenTool, BarChart, Sparkles, X, Image as ImageIcon, Database, Globe } from "lucide-react"
 import TextareaAutosize from "react-textarea-autosize"
-import { motion, Variants } from "framer-motion"
+import { motion, Variants, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ApiClient } from "@/lib/api"
@@ -16,20 +16,15 @@ const SUGGESTED_PROMPTS = [
   { icon: Sparkles, title: "Explain a concept", text: "Explain quantum computing in simple terms" },
   { icon: FileText, title: "Summarize a document", text: "Summarize the key points of a lengthy document" },
   { icon: Code, title: "Write Python code", text: "Write a Python script to scrape a website" },
-  { icon: Code, title: "Debug code", text: "Help me debug a React useEffect dependency issue" },
-  { icon: Brain, title: "Brainstorm ideas", text: "Brainstorm 10 ideas for a new mobile app" },
-  { icon: PenTool, title: "Draft an email", text: "Draft a professional email to my boss asking for time off" },
-  { icon: MessageSquare, title: "Translate text", text: "Translate the following English text to French" },
   { icon: BarChart, title: "Analyze data", text: "How should I structure a SQL query to analyze user retention?" },
 ]
 
 const QUICK_ACTIONS = [
-  { icon: MessageSquare, label: "Chat" },
-  { icon: Code, label: "Code" },
-  { icon: FileText, label: "Documents" },
-  { icon: Brain, label: "Study" },
-  { icon: PenTool, label: "Write" },
-  { icon: BarChart, label: "Analyze" },
+  { icon: MessageSquare, label: "AI Chat" },
+  { icon: FileText, label: "Upload Document" },
+  { icon: Database, label: "Analyze Dataset" },
+  { icon: ImageIcon, label: "Analyze Image" },
+  { icon: Mic, label: "Voice Assistant" },
 ]
 
 const MAX_IMAGES = 5
@@ -241,16 +236,8 @@ export function ChatInterface() {
   const handleRegenerate = () => {
     const lastUserMessage = [...messages].reverse().find(m => m.role === "user")
     if (lastUserMessage) {
-      // NOTE: Regenerate won't re-upload images, it just uses the existing history
       handleSend(lastUserMessage.content, true)
     }
-  }
-
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return "Good morning"
-    if (hour < 18) return "Good afternoon"
-    return "Good evening"
   }
 
   const containerVariants: Variants = {
@@ -268,7 +255,7 @@ export function ChatInterface() {
 
   return (
     <div 
-      className="flex flex-col h-full w-full bg-background relative overflow-hidden"
+      className="flex flex-col h-full w-full relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -294,23 +281,23 @@ export function ChatInterface() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto w-full">
+      <div className="flex-1 overflow-y-auto w-full scroll-smooth">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center min-h-full py-12 px-4 w-full max-w-4xl mx-auto space-y-12 pb-48">
+          <div className="flex flex-col items-center justify-center min-h-full py-12 px-4 w-full max-w-3xl mx-auto space-y-12 pb-[200px]">
             <motion.div 
               initial={{ opacity: 0, y: 20 }} 
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
-              className="text-center space-y-4"
+              className="text-center space-y-4 flex flex-col items-center mt-10 md:mt-20"
             >
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-6">
-                <Bot className="h-8 w-8 text-primary" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary mb-2">
+                <span className="text-foreground font-bold text-3xl">N</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">
-                {getGreeting()}
+              <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+                Welcome to Nova AI
               </h2>
-              <p className="text-lg md:text-xl text-muted-foreground font-medium">
-                I&apos;m your AI Assistant. How can I help you today?
+              <p className="text-base md:text-lg text-muted-foreground font-medium max-w-[600px] text-center">
+                Your intelligent assistant for coding, research, documents, images, voice, and data analysis.
               </p>
             </motion.div>
 
@@ -318,53 +305,64 @@ export function ChatInterface() {
               variants={containerVariants} 
               initial="hidden" 
               animate="show" 
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full"
+              className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"
             >
               {SUGGESTED_PROMPTS.map((prompt, i) => (
                 <motion.div variants={itemVariants} key={i}>
                   <button
                     onClick={() => handleSend(prompt.text)}
-                    className="flex flex-col h-full w-full items-start gap-3 p-4 text-left border rounded-xl bg-card hover:bg-accent/50 hover:border-accent-foreground/20 transition-all group"
+                    className="flex flex-col h-full w-full items-start gap-2 p-4 text-left border rounded-xl bg-card hover:bg-secondary/50 transition-all group"
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                      <prompt.icon className="h-4 w-4" />
+                    <div className="flex items-center gap-2 mb-1">
+                      <prompt.icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <p className="font-medium text-sm text-foreground">{prompt.title}</p>
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm text-foreground mb-1">{prompt.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{prompt.text}</p>
-                    </div>
+                    <p className="text-sm text-muted-foreground">{prompt.text}</p>
                   </button>
                 </motion.div>
               ))}
             </motion.div>
           </div>
         ) : (
-          <div className="px-4 md:px-8 py-6 w-full max-w-3xl mx-auto space-y-6 pb-48">
-            {messages.map((msg, index) => (
-              <ChatMessage 
-                key={msg.id} 
-                message={msg} 
-                onRegenerate={msg.role === "model" && index === messages.length - 1 ? handleRegenerate : undefined}
-              />
-            ))}
+          <div className="px-4 md:px-0 py-6 w-full max-w-3xl mx-auto space-y-8 pb-[200px]">
+            <AnimatePresence initial={false}>
+              {messages.map((msg, index) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ChatMessage 
+                    message={msg} 
+                    onRegenerate={msg.role === "model" && index === messages.length - 1 ? handleRegenerate : undefined}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            
             {isGenerating && messages.length > 0 && messages[messages.length - 1].role === "model" && messages[messages.length - 1].content === "" && (
-              <div className="flex gap-4 w-full">
-                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex gap-4 w-full px-4 md:px-0"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-background text-primary shadow-sm">
                   <Bot className="h-4 w-4" />
                 </div>
-                <div className="flex items-center gap-1 px-4 py-3 bg-muted rounded-2xl rounded-tl-none h-10">
-                  <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                  <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                  <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce"></span>
+                <div className="flex items-center gap-1.5 h-8">
+                  <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                  <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                  <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce"></span>
                 </div>
-              </div>
+              </motion.div>
             )}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background/90 to-transparent pt-12 pb-6 px-4 md:px-8 pointer-events-none">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background/90 to-transparent pt-12 pb-6 px-4 pointer-events-none">
         <div className="max-w-3xl mx-auto w-full pointer-events-auto">
           {messages.length === 0 && (
             <motion.div 
@@ -376,9 +374,9 @@ export function ChatInterface() {
               {QUICK_ACTIONS.map((action, i) => (
                 <button 
                   key={i} 
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-background hover:bg-secondary/80 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0 shadow-sm"
                 >
-                  <action.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <action.icon className="h-4 w-4" />
                   {action.label}
                 </button>
               ))}
@@ -388,8 +386,8 @@ export function ChatInterface() {
           <form 
             onSubmit={(e) => { e.preventDefault(); handleSend() }} 
             className={cn(
-              "relative flex flex-col w-full border bg-background rounded-2xl shadow-lg transition-shadow",
-              (isDragging || stagedImages.length > 0) ? "ring-1 ring-primary border-primary" : "focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"
+              "relative flex flex-col w-full bg-secondary/40 border border-border/50 rounded-[24px] shadow-sm transition-all focus-within:bg-background focus-within:shadow-md focus-within:border-border",
+              (isDragging || stagedImages.length > 0) ? "ring-1 ring-primary/50 border-primary/50" : ""
             )}
           >
             {stagedImages.length > 0 && (
@@ -397,11 +395,11 @@ export function ChatInterface() {
                 {stagedImages.map((file, i) => (
                   <div key={i} className="relative group shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={URL.createObjectURL(file)} alt="Staged" className="h-16 w-16 object-cover rounded-lg border border-primary/20" />
+                    <img src={URL.createObjectURL(file)} alt="Staged" className="h-16 w-16 object-cover rounded-xl border border-border bg-background" />
                     <button 
                       type="button"
                       onClick={() => setStagedImages(prev => prev.filter((_, idx) => idx !== i))}
-                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      className="absolute -top-2 -right-2 bg-foreground text-background rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -418,7 +416,7 @@ export function ChatInterface() {
               multiple 
               onChange={(e) => {
                 if (e.target.files) handleAddImages(e.target.files)
-                e.target.value = '' // Reset so the same file can be selected again
+                e.target.value = ''
               }} 
             />
 
@@ -427,9 +425,9 @@ export function ChatInterface() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={isListening ? "Listening..." : "Message AI Assistant..."}
+              placeholder={isListening ? "Listening..." : "Message Nova..."}
               maxRows={8}
-              className="w-full resize-none bg-transparent px-4 py-4 pr-12 text-base focus:outline-none disabled:opacity-50 min-h-[56px] rounded-2xl"
+              className="w-full resize-none bg-transparent px-4 py-4 text-base focus:outline-none disabled:opacity-50 min-h-[56px] rounded-[24px] placeholder:text-muted-foreground/70"
               disabled={isGenerating || isUploading}
               autoFocus
             />
@@ -440,7 +438,7 @@ export function ChatInterface() {
                   type="button" 
                   size="icon" 
                   variant="ghost" 
-                  className="h-8 w-8 rounded-full hover:bg-accent/50 hover:text-foreground" 
+                  className="h-8 w-8 rounded-full hover:bg-secondary hover:text-foreground" 
                   title="Attach images"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || isGenerating}
@@ -453,7 +451,7 @@ export function ChatInterface() {
                     type="button" 
                     size="icon" 
                     variant="ghost" 
-                    className={cn("h-8 w-8 rounded-full hover:bg-accent/50 hover:text-foreground transition-colors", isListening && "text-red-500 hover:text-red-600 bg-red-100 dark:bg-red-900/30")} 
+                    className={cn("h-8 w-8 rounded-full hover:bg-secondary hover:text-foreground transition-colors", isListening && "text-red-500 hover:text-red-600 bg-red-100 dark:bg-red-900/30")} 
                     onClick={() => isListening ? stopListening() : startListening()}
                     title="Use voice input (Alt+M)"
                     disabled={isUploading || isGenerating}
@@ -465,7 +463,7 @@ export function ChatInterface() {
               </div>
 
               {isGenerating || isUploading ? (
-                <Button type="button" size="icon" variant="destructive" className="h-8 w-8 rounded-full shadow-sm" onClick={stopGeneration} disabled={isUploading}>
+                <Button type="button" size="icon" variant="default" className="h-8 w-8 rounded-full shadow-sm bg-foreground text-background hover:bg-foreground/90" onClick={stopGeneration} disabled={isUploading}>
                   <Square className="h-4 w-4 fill-current" />
                   <span className="sr-only">Stop generation</span>
                 </Button>
@@ -474,7 +472,7 @@ export function ChatInterface() {
                   type="submit" 
                   size="icon" 
                   variant="default"
-                  className={cn("h-8 w-8 rounded-full transition-all shadow-sm", (input.trim() || stagedImages.length > 0) ? "opacity-100 scale-100" : "opacity-40 scale-95 grayscale")}
+                  className={cn("h-8 w-8 rounded-full transition-all shadow-sm", (input.trim() || stagedImages.length > 0) ? "bg-primary text-primary-foreground opacity-100 scale-100 hover:bg-primary/90" : "bg-muted text-muted-foreground opacity-50 scale-95")}
                   disabled={!input.trim() && stagedImages.length === 0}
                 >
                   <Send className="h-4 w-4" />
@@ -484,12 +482,8 @@ export function ChatInterface() {
             </div>
           </form>
           
-          <div className="flex flex-col sm:flex-row items-center justify-between mt-3 text-xs text-muted-foreground px-2 gap-2 text-center sm:text-left">
-            <span>AI can make mistakes. Consider verifying important information.</span>
-            <div className="hidden sm:flex items-center gap-2">
-              <span className="flex items-center gap-1">Press <kbd className="font-sans px-1.5 py-0.5 rounded border bg-muted/50 text-[10px] font-semibold tracking-wider">Alt+M</kbd> for mic</span>
-              <span className="flex items-center gap-1">Press <kbd className="font-sans px-1.5 py-0.5 rounded border bg-muted/50 text-[10px] font-semibold tracking-wider">Enter ↵</kbd> to send</span>
-            </div>
+          <div className="flex items-center justify-center mt-3 text-xs text-muted-foreground/70">
+            <span>Nova AI can make mistakes. Consider verifying important information.</span>
           </div>
         </div>
       </div>
