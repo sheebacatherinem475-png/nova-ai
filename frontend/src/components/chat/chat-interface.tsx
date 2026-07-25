@@ -217,9 +217,13 @@ export function ChatInterface() {
       if (err instanceof Error && err.name === "AbortError") {
         toast.info("Generation stopped.")
       } else {
+        const errorMessage = err instanceof Error ? err.message : "Failed to connect to AI."
         toast.error("Error", {
-          description: err instanceof Error ? err.message : "Failed to connect to AI.",
+          description: errorMessage,
         })
+        if (!accumulatedResponse.trim()) {
+          updateMessage(chatId!, assistantMessageId, `⚠️ **Error:** ${errorMessage}`)
+        }
       }
     } finally {
       setIsGenerating(false)

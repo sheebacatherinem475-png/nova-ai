@@ -106,9 +106,14 @@ async def analyze_images(request: ImageAnalyzeRequest):
                     )
                 )
                 
+                accumulated = ""
                 for chunk in response:
                     if chunk.text:
+                        accumulated += chunk.text
                         yield f"data: {json.dumps({'chunk': chunk.text})}\n\n"
+                        
+                if not accumulated.strip():
+                    yield f"data: {json.dumps({'error': 'The AI provider returned an empty response. Please try rephrasing your request.'})}\n\n"
                         
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
