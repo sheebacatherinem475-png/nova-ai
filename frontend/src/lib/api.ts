@@ -26,6 +26,24 @@ export class ApiClient {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
   }
 
+  private static async fetchWithRetry(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        if (response.ok || response.status < 500) {
+          // If successful or client error (4xx), return immediately. Don't retry 4xx.
+          return response;
+        }
+      } catch (err) {
+        if (i === retries - 1) throw err;
+      }
+      // Wait before retrying
+      await new Promise(res => setTimeout(res, backoff * Math.pow(2, i)));
+    }
+    // Final attempt if loop finished
+    return fetch(url, options);
+  }
+
   private static getHeaders(extraHeaders: Record<string, string> = {}) {
     const headers: Record<string, string> = { ...extraHeaders }
     
@@ -232,7 +250,7 @@ export class ApiClient {
   }
 
   static async getDocuments(): Promise<DocumentMeta[]> {
-    const res = await fetch(`${this.baseUrl}/api/documents`, { headers: this.getHeaders() })
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/documents`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to fetch documents")
     return res.json()
   }
@@ -253,13 +271,13 @@ export class ApiClient {
   }
 
   static async listDatasets(): Promise<UploadDatasetResponse[]> {
-    const res = await fetch(`${this.baseUrl}/api/datasets`, { headers: this.getHeaders() })
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/datasets`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to fetch datasets")
     return res.json()
   }
 
   static async deleteDataset(id: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/datasets/${id}`, { method: "DELETE", headers: this.getHeaders() })
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/datasets/${id}`, { method: "DELETE", headers: this.getHeaders() })
     if (!res.ok) throw new Error("Failed to delete dataset")
   }
 
@@ -312,7 +330,7 @@ export class ApiClient {
   }
 
   static async getVoices() {
-    const response = await fetch(`${this.baseUrl}/api/voice/voices`, { headers: this.getHeaders() })
+    const response = await this.fetchWithRetry(`${this.baseUrl}/api/voice/voices`, { headers: this.getHeaders() })
     if (!response.ok) {
       throw new Error(`Failed to fetch voices: ${response.statusText}`)
     }
@@ -337,7 +355,7 @@ export class ApiClient {
   }
 
   static async deleteDocument(docId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/documents/${docId}`, {
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/documents/${docId}`, {
       method: "DELETE",
       headers: this.getHeaders()
     })
@@ -345,7 +363,7 @@ export class ApiClient {
   }
 
   static async getDatasetInsights(datasetId: string) {
-    const res = await fetch(`${this.baseUrl}/api/data-analysis/insights/${datasetId}`, { headers: this.getHeaders() })
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/data-analysis/insights/${datasetId}`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error('Failed to fetch insights')
     return res.json()
   }
@@ -398,7 +416,7 @@ export class ApiClient {
   }
 
   static async getMe() {
-    const res = await fetch(`${this.baseUrl}/api/auth/me`, { headers: this.getHeaders() })
+    const res = await this.fetchWithRetry(`${this.baseUrl}/api/auth/me`, { headers: this.getHeaders() })
     if (!res.ok) throw new Error('Failed to fetch user')
     return res.json()
   }

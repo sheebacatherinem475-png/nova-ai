@@ -10,11 +10,11 @@ from app.core.db_sqlalchemy import get_db
 from app.models.document import Document
 from app.services.document_service import extract_text_from_file
 from app.services.embedding_service import store_document_chunks, delete_document_chunks
+from app.services.storage_service import storage_service
 
 router = APIRouter()
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'uploads')
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".md", ".csv"}
 
 @router.post("/upload")
 async def upload_document(
@@ -25,18 +25,17 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Filename not provided.")
         
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ['.pdf', '.txt', '.docx']:
+    if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
         
     doc_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{file.filename}")
     
     # Save file
     try:
         content = await file.read()
         size = len(content)
-        with open(file_path, "wb") as f:
-            f.write(content)
+        # Save to storage service
+        file_path = await storage_service.save_file("documents", f"{doc_id}_{file.filename}", content)
             
         # Extract text
         text = extract_text_from_file(file_path, file.filename)
@@ -52,8 +51,6 @@ async def upload_document(
         
         return {"id": doc_id, "filename": file.filename, "size": size, "upload_time": upload_time}
     except Exception as e:
-        if os.path.exists(file_path):
-            os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.get("")
@@ -76,8 +73,6 @@ async def remove_document(doc_id: str, db: Session = Depends(get_db)):
     delete_document_chunks(doc_id)
     
     # Delete physical file
-    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{filename}")
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    storage_service.delete_file("documents", f"{doc_id}_{filename}")
         
     return {"status": "success"}

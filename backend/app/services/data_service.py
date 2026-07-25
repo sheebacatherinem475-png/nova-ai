@@ -10,9 +10,7 @@ from functools import lru_cache
 from sqlalchemy.orm import Session
 from app.models.dataset import Dataset
 from app.services.query_validator import validate_query
-
-DATASETS_DIR = Path("uploads/datasets")
-DATASETS_DIR.mkdir(parents=True, exist_ok=True)
+from app.services.storage_service import storage_service
 
 ALLOWED_EXTENSIONS = {".csv", ".json", ".xlsx"}
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
@@ -28,10 +26,8 @@ async def process_and_save_dataset(file: UploadFile, db: Session) -> dict:
     
     file_id = str(uuid.uuid4())
     safe_filename = f"{file_id}{ext}"
-    file_path = DATASETS_DIR / safe_filename
     
-    with open(file_path, "wb") as f:
-        f.write(contents)
+    file_path = await storage_service.save_file("datasets", safe_filename, contents)
         
     try:
         df = _load_dataframe(file_path, ext)
@@ -61,8 +57,7 @@ async def process_and_save_dataset(file: UploadFile, db: Session) -> dict:
             "summary": summary
         }
     except Exception as e:
-        if file_path.exists():
-            file_path.unlink()
+        storage_service.delete_file("datasets", safe_filename)
         raise HTTPException(status_code=400, detail=f"Failed to process dataset: {str(e)}")
 
 @lru_cache(maxsize=5)
@@ -119,10 +114,7 @@ def remove_dataset(dataset_id: str, db: Session):
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
         
-    try:
-        os.remove(ds.local_path)
-    except:
-        pass
+    storage_service.delete_file("datasets", Path(ds.local_path).name)
         
     db.delete(ds)
     db.commit()
@@ -181,10 +173,15 @@ def apply_filter(dataset_id: str, query: str, db: Session) -> dict:
     # Save virtual dataset
     file_id = str(uuid.uuid4())
     safe_filename = f"{file_id}.json"
-    file_path = DATASETS_DIR / safe_filename
     
     # Store as json for type preservation
-    filtered_df.to_json(file_path, orient="records")
+    content_bytes = filtered_df.to_json(orient="records").encode('utf-8')
+    file_path = storage_service.get_path("datasets", safe_filename)
+    
+    # Since we need async for save_file and apply_filter is sync, we write directly for now, 
+    # but using storage_service's path.
+    with open(file_path, "wb") as f:
+        f.write(content_bytes)
     
     new_summary = _generate_summary(filtered_df)
     upload_time = datetime.utcnow().isoformat() + "Z"
