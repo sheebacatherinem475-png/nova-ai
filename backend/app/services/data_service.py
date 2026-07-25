@@ -7,7 +7,8 @@ import json
 import uuid
 import pandas as pd
 from functools import lru_cache
-from app.core.database import add_dataset, delete_dataset, get_dataset
+from sqlalchemy.orm import Session
+from app.models.dataset import Dataset
 from app.services.query_validator import validate_query
 
 DATASETS_DIR = Path("uploads/datasets")
@@ -16,7 +17,7 @@ DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".csv", ".json", ".xlsx"}
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
-async def process_and_save_dataset(file: UploadFile) -> dict:
+async def process_and_save_dataset(file: UploadFile, db: Session) -> dict:
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
@@ -40,7 +41,17 @@ async def process_and_save_dataset(file: UploadFile) -> dict:
         # Save to DB
         upload_time = datetime.utcnow().isoformat() + "Z"
         summary_json = json.dumps(summary)
-        add_dataset(file_id, file.filename, len(contents), upload_time, summary_json, str(file_path))
+        
+        new_ds = Dataset(
+            id=file_id, 
+            filename=file.filename, 
+            size=len(contents), 
+            upload_time=upload_time, 
+            summary=summary_json, 
+            local_path=str(file_path)
+        )
+        db.add(new_ds)
+        db.commit()
         
         return {
             "id": file_id,
@@ -103,26 +114,27 @@ def _generate_summary(df: pd.DataFrame) -> dict:
         "correlation": correlation
     }
 
-def remove_dataset(dataset_id: str):
-    ds = get_dataset(dataset_id)
+def remove_dataset(dataset_id: str, db: Session):
+    ds = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
         
     try:
-        os.remove(ds["local_path"])
+        os.remove(ds.local_path)
     except:
         pass
         
-    delete_dataset(dataset_id)
+    db.delete(ds)
+    db.commit()
 
-def get_dataset_context(dataset_id: str) -> str:
-    ds = get_dataset(dataset_id)
+def get_dataset_context(dataset_id: str, db: Session) -> str:
+    ds = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
         
-    summary = json.loads(ds["summary"])
+    summary = json.loads(ds.summary)
     
-    context = f"Dataset: {ds['filename']}\n"
+    context = f"Dataset: {ds.filename}\n"
     context += f"Rows: {summary['row_count']}, Columns: {summary['col_count']}\n\n"
     
     context += "Columns Info (Name, Type, Missing Values):\n"
@@ -144,19 +156,19 @@ def get_dataset_context(dataset_id: str) -> str:
         
     return context
 
-def apply_filter(dataset_id: str, query: str) -> dict:
-    ds = get_dataset(dataset_id)
+def apply_filter(dataset_id: str, query: str, db: Session) -> dict:
+    ds = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Dataset not found")
         
-    summary = json.loads(ds["summary"])
+    summary = json.loads(ds.summary)
     allowed_cols = [c["name"] for c in summary["columns"]]
     
     is_valid, errors = validate_query(query, allowed_cols)
     if not is_valid:
         raise HTTPException(status_code=400, detail=f"Invalid filter query: {'; '.join(errors)}")
         
-    df = _load_dataframe(Path(ds["local_path"]), os.path.splitext(ds["local_path"])[1].lower())
+    df = _load_dataframe(Path(ds.local_path), os.path.splitext(ds.local_path)[1].lower())
     
     try:
         filtered_df = df.query(query)
@@ -175,14 +187,22 @@ def apply_filter(dataset_id: str, query: str) -> dict:
     filtered_df.to_json(file_path, orient="records")
     
     new_summary = _generate_summary(filtered_df)
-    upload_time = ds["upload_time"] # Keep original upload time for order? Or new? Let's use new
     upload_time = datetime.utcnow().isoformat() + "Z"
     
-    add_dataset(file_id, f"{ds['filename']} (Filtered)", len(filtered_df), upload_time, json.dumps(new_summary), str(file_path))
+    new_ds = Dataset(
+        id=file_id,
+        filename=f"{ds.filename} (Filtered)",
+        size=len(filtered_df),
+        upload_time=upload_time,
+        summary=json.dumps(new_summary),
+        local_path=str(file_path)
+    )
+    db.add(new_ds)
+    db.commit()
     
     return {
         "id": file_id,
-        "filename": f"{ds['filename']} (Filtered)",
+        "filename": f"{ds.filename} (Filtered)",
         "size": len(filtered_df),
         "upload_time": upload_time,
         "summary": new_summary

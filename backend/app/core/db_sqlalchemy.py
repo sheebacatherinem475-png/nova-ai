@@ -1,12 +1,14 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from .config import settings
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'documents.db')
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
-
+# If no DB URL is provided, FastAPI will fail at startup as per requirements
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    settings.DATABASE_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

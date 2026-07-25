@@ -4,13 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.routes import router as api_router
-from app.core.database import init_db
+from app.api.routes import router as api_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
 
 origins = [
     settings.FRONTEND_URL,

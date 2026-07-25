@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
+from sqlalchemy.orm import Session
+from fastapi import Depends
+from app.core.db_sqlalchemy import get_db
 from google import genai
 from google.genai import types
 from app.core.config import settings
@@ -16,13 +19,13 @@ class DataAnalyzeRequest(BaseModel):
     dataset_id: str
 
 @router.post("/analyze")
-async def analyze_data(request: DataAnalyzeRequest):
+async def analyze_data(request: DataAnalyzeRequest, db: Session = Depends(get_db)):
     if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "placeholder_key_replace_me":
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured on the server.")
         
     try:
         # Get the structured pandas summary for context
-        dataset_context = get_dataset_context(request.dataset_id)
+        dataset_context = get_dataset_context(request.dataset_id, db)
         
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         
@@ -86,7 +89,7 @@ Dataset Information:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/insights/{dataset_id}")
-async def generate_dataset_insights(dataset_id: str):
+async def generate_dataset_insights(dataset_id: str, db: Session = Depends(get_db)):
     if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "placeholder_key_replace_me":
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured.")
         
@@ -95,7 +98,7 @@ async def generate_dataset_insights(dataset_id: str):
         return cached
         
     try:
-        dataset_context = get_dataset_context(dataset_id)
+        dataset_context = get_dataset_context(dataset_id, db)
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         
         prompt = f"""Analyze this dataset and provide a high-level summary of key insights.

@@ -1,10 +1,13 @@
 import os
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from typing import List
 
-from app.core.database import add_document, get_all_documents, delete_document, get_document
+from sqlalchemy.orm import Session
+from app.api.dependencies import get_current_user
+from app.core.db_sqlalchemy import get_db
+from app.models.document import Document
 from app.services.document_service import extract_text_from_file
 from app.services.embedding_service import store_document_chunks, delete_document_chunks
 
@@ -14,7 +17,10 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'uploads')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename not provided.")
         
@@ -40,7 +46,9 @@ async def upload_document(file: UploadFile = File(...)):
         
         # Add to SQL DB
         upload_time = datetime.utcnow().isoformat() + "Z"
-        add_document(doc_id, file.filename, size, upload_time)
+        new_doc = Document(id=doc_id, filename=file.filename, size=size, upload_time=upload_time)
+        db.add(new_doc)
+        db.commit()
         
         return {"id": doc_id, "filename": file.filename, "size": size, "upload_time": upload_time}
     except Exception as e:
@@ -49,24 +57,26 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.get("")
-async def list_documents():
-    docs = get_all_documents()
-    return docs
+async def list_documents(db: Session = Depends(get_db)):
+    docs = db.query(Document).order_by(Document.upload_time.desc()).all()
+    return [{"id": d.id, "filename": d.filename, "size": d.size, "upload_time": d.upload_time} for d in docs]
 
 @router.delete("/{doc_id}")
-async def remove_document(doc_id: str):
-    doc = get_document(doc_id)
+async def remove_document(doc_id: str, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
+    filename = doc.filename
     # Delete from SQLite
-    delete_document(doc_id)
+    db.delete(doc)
+    db.commit()
     
     # Delete from ChromaDB
     delete_document_chunks(doc_id)
     
     # Delete physical file
-    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{doc['filename']}")
+    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{filename}")
     if os.path.exists(file_path):
         os.remove(file_path)
         

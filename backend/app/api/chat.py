@@ -7,8 +7,11 @@ from typing import List, Optional
 from google import genai
 from google.genai import types
 from app.core.config import settings
+from sqlalchemy.orm import Session
+from fastapi import Depends
+from app.core.db_sqlalchemy import get_db
+from app.models.document import Document
 from app.services.embedding_service import retrieve_relevant_chunks
-from app.core.database import get_all_documents
 
 router = APIRouter()
 
@@ -17,7 +20,7 @@ class ChatRequest(BaseModel):
     history: Optional[List[dict]] = []
 
 @router.post("")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "placeholder_key_replace_me":
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured on the server.")
         
@@ -34,8 +37,8 @@ async def chat_endpoint(request: ChatRequest):
                 if "yes" in lower_msg or "sure" in lower_msg or "go ahead" in lower_msg or "general" in lower_msg:
                     is_fallback_confirmation = True
 
-        docs = get_all_documents()
-        use_rag = len(docs) > 0 and not is_fallback_confirmation
+        docs_count = db.query(Document).count()
+        use_rag = docs_count > 0 and not is_fallback_confirmation
         
         system_instruction = ""
         context_text = ""
