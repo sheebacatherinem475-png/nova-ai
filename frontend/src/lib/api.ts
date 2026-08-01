@@ -23,7 +23,7 @@ export interface UploadDatasetResponse {
 
 export class ApiClient {
   private static get baseUrl() {
-    return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+    return process.env.NEXT_PUBLIC_BACKEND_URL || "https://nova-ai-0m0x.onrender.com"
   }
 
   private static async fetchWithRetry(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
