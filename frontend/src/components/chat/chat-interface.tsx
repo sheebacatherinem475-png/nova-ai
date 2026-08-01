@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Send, Square, Bot, Paperclip, Mic, MessageSquare, Code, FileText, Brain, PenTool, BarChart, Sparkles, X, Image as ImageIcon, Database, Globe } from "lucide-react"
+import { Send, Square, Bot, Paperclip, Mic, MessageSquare, Code, FileText, BarChart, Sparkles, X, Image as ImageIcon, Database } from "lucide-react"
 import TextareaAutosize from "react-textarea-autosize"
 import { motion, Variants, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"

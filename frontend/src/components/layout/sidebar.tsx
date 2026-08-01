@@ -1,12 +1,10 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { format, isToday, isYesterday, isThisWeek } from "date-fns"
+import { isToday, isYesterday, isThisWeek } from "date-fns"
 import { 
-  Home, 
   Settings as SettingsIcon, 
   MessageSquare, 
   Search,
@@ -17,11 +15,7 @@ import {
   FileText,
   Database,
   LogOut,
-  Image as ImageIcon,
-  Mic,
-  BarChart,
-  PanelLeftClose,
-  MoreHorizontal
+  PanelLeftClose
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -48,8 +42,8 @@ type GroupedChats = {
   older: Chat[]
 }
 
-export function Sidebar({ className, isMobileOpen, setMobileOpen, isDesktopCollapsed, setDesktopCollapsed }: SidebarProps) {
-  const pathname = usePathname()
+export function Sidebar({ isMobileOpen, setMobileOpen, isDesktopCollapsed, setDesktopCollapsed }: SidebarProps) {
+
   const { 
     chats, 
     activeChatId, 
