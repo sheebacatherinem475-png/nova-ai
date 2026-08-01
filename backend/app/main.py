@@ -8,6 +8,10 @@ import logging
 
 from app.core.config import settings
 from app.api.routes import router as api_router
+from app.core.db_sqlalchemy import engine, Base
+
+# Create tables automatically for Render deployments
+Base.metadata.create_all(bind=engine)
 
 # Configure structured logging
 logging.basicConfig(
@@ -40,6 +44,7 @@ app.add_middleware(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
