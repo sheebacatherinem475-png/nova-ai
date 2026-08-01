@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "My Project API"
     FRONTEND_URL: str = "http://localhost:3000"
     GEMINI_API_KEY: str = "placeholder_key_replace_me"
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite:///./nova.db"
     
     SECRET_KEY: str = "super_secret_key_change_in_production"
     ALGORITHM: str = "HS256"
