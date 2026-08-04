@@ -15,11 +15,13 @@ from app.core.config import settings
 CHROMA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'chroma_db')
 
 # Use PersistentClient for local ChromaDB storage
+chroma_init_error = None
 try:
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = chroma_client.get_or_create_collection(name="documents")
 except Exception as e:
     print(f"Warning: Failed to initialize ChromaDB. Make sure it is installed. Error: {e}")
+    chroma_init_error = str(e)
     collection = None
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200):
@@ -37,11 +39,12 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200):
 
 def store_document_chunks(doc_id: str, filename: str, text: str):
     if collection is None:
-        return
+        error_msg = f"Vector database is not initialized. Initialization error: {chroma_init_error}"
+        raise Exception(error_msg)
         
     chunks = chunk_text(text)
     if not chunks:
-        return
+        raise Exception("Could not extract any text from the document. If this is a scanned PDF or image, text extraction is not supported.")
         
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
