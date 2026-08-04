@@ -1,4 +1,13 @@
 import os
+import sys
+
+# Patch sqlite3 for ChromaDB on platforms with older SQLite versions (like Render)
+try:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 import chromadb
 from google import genai
 from app.core.config import settings
@@ -47,7 +56,7 @@ def store_document_chunks(doc_id: str, filename: str, text: str):
         chunk_id = f"{doc_id}_{i}"
         
         response = client.models.embed_content(
-            model='gemini-embedding-2',
+            model='text-embedding-004',
             contents=chunk,
         )
         
@@ -75,7 +84,7 @@ def retrieve_relevant_chunks(query: str, top_k: int = 5):
         
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.embed_content(
-        model='gemini-embedding-2',
+        model='text-embedding-004',
         contents=query,
     )
     query_embedding = response.embeddings[0].values
