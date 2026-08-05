@@ -14,7 +14,7 @@ from app.services.storage_service import storage_service
 
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = {".txt", ".pdf", ".md", ".csv"}
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".md", ".csv", ".docx"}
 
 @router.post("/upload")
 async def upload_document(

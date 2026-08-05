@@ -59,7 +59,7 @@ def store_document_chunks(doc_id: str, filename: str, text: str):
         chunk_id = f"{doc_id}_{i}"
         
         response = client.models.embed_content(
-            model='text-embedding-004',
+            model='gemini-embedding-2',
             contents=chunk,
         )
         
@@ -87,7 +87,7 @@ def retrieve_relevant_chunks(query: str, top_k: int = 5):
         
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.embed_content(
-        model='text-embedding-004',
+        model='gemini-embedding-2',
         contents=query,
     )
     query_embedding = response.embeddings[0].values

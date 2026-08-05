@@ -6,6 +6,7 @@ from fastapi import UploadFile, HTTPException
 import json
 import uuid
 import pandas as pd
+import numpy as np
 from functools import lru_cache
 from sqlalchemy.orm import Session
 from app.models.dataset import Dataset
@@ -87,7 +88,10 @@ def _generate_summary(df: pd.DataFrame) -> dict:
     numeric_df = df.select_dtypes(include=["number"])
     stats = {}
     if not numeric_df.empty:
-        stats = numeric_df.describe().to_dict()
+        # Summary statistics
+        summary = df.describe(include='all')
+        summary = summary.replace({np.nan: None})
+        stats = summary.to_dict()
         
     # 3. head 20
     # ensure it's JSON serializable, fillna
