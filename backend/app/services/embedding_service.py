@@ -37,6 +37,24 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200):
         start += chunk_size - overlap
     return chunks
 
+import time
+
+def _embed_with_retry(client, contents: str, model: str = 'gemini-embedding-2', max_retries: int = 4):
+    for attempt in range(max_retries):
+        try:
+            return client.models.embed_content(
+                model=model,
+                contents=contents,
+            )
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "503" in err_msg or "429" in err_msg or "quota" in err_msg or "high demand" in err_msg:
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep((attempt + 1) * 3) # Backoff: 3s, 6s, 9s
+            else:
+                raise e
+
 def store_document_chunks(doc_id: str, filename: str, text: str):
     if collection is None:
         error_msg = f"Vector database is not initialized. Initialization error: {chroma_init_error}"
@@ -53,20 +71,13 @@ def store_document_chunks(doc_id: str, filename: str, text: str):
     metadatas = []
     documents = []
     
-    # Process chunks in small batches if there are many, but for simplicity, we iterate
-    # Gemini embed_content supports batching depending on the client version.
     for i, chunk in enumerate(chunks):
         chunk_id = f"{doc_id}_{i}"
         
-        response = client.models.embed_content(
-            model='gemini-embedding-2',
-            contents=chunk,
-        )
+        response = _embed_with_retry(client, chunk)
         
         embeddings.append(response.embeddings[0].values)
         ids.append(chunk_id)
-        # We store filename and page_number (fake for now if txt, we can improve later)
-        # We will use doc_id to delete easily
         metadatas.append({
             "doc_id": doc_id,
             "filename": filename,
@@ -86,13 +97,10 @@ def retrieve_relevant_chunks(query: str, top_k: int = 5):
         return []
         
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    response = client.models.embed_content(
-        model='gemini-embedding-2',
-        contents=query,
-    )
+    response = _embed_with_retry(client, query)
+    
     query_embedding = response.embeddings[0].values
     
-    # We must ensure there are documents in the collection, else it throws
     if collection.count() == 0:
         return []
         
