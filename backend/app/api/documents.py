@@ -41,7 +41,7 @@ async def upload_document(
         text = extract_text_from_file(file_path, file.filename)
         
         # Store in Vector DB
-        store_document_chunks(doc_id, file.filename, text)
+        chunks_count = store_document_chunks(doc_id, file.filename, text)
         
         # Add to SQL DB
         upload_time = datetime.utcnow().isoformat() + "Z"
@@ -49,7 +49,17 @@ async def upload_document(
         db.add(new_doc)
         db.commit()
         
-        return {"id": doc_id, "filename": file.filename, "size": size, "upload_time": upload_time}
+        return {
+            "id": doc_id, 
+            "filename": file.filename, 
+            "size": size, 
+            "upload_time": upload_time,
+            "debug": {
+                "extracted_text_length": len(text),
+                "text_preview": text[:500],
+                "chunks_count": chunks_count
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 

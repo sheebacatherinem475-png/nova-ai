@@ -55,7 +55,7 @@ def _embed_with_retry(client, contents: str, model: str = 'gemini-embedding-2', 
             else:
                 raise e
 
-def store_document_chunks(doc_id: str, filename: str, text: str):
+def store_document_chunks(doc_id: str, filename: str, text: str) -> int:
     if collection is None:
         error_msg = f"Vector database is not initialized. Initialization error: {chroma_init_error}"
         raise Exception(error_msg)
@@ -91,6 +91,7 @@ def store_document_chunks(doc_id: str, filename: str, text: str):
         metadatas=metadatas,
         ids=ids
     )
+    return len(chunks)
 
 def retrieve_relevant_chunks(query: str, top_k: int = 5):
     if collection is None:
@@ -113,10 +114,12 @@ def retrieve_relevant_chunks(query: str, top_k: int = 5):
     if results and results.get('documents') and results['documents'][0]:
         for i, doc in enumerate(results['documents'][0]):
             meta = results['metadatas'][0][i]
+            distance = results['distances'][0][i] if 'distances' in results and results['distances'] else 0.0
             retrieved.append({
                 "text": doc,
                 "filename": meta.get("filename", "Unknown"),
-                "doc_id": meta.get("doc_id", "")
+                "doc_id": meta.get("doc_id", ""),
+                "distance": distance
             })
             
     return retrieved

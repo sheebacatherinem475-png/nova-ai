@@ -108,6 +108,10 @@ Context:
                         
                 if not accumulated.strip():
                     yield f"data: {json.dumps({'error': 'The AI provider returned an empty response. Please try rephrasing your request.'})}\n\n"
+                    
+                # Final debug chunk
+                if use_rag:
+                    yield f"data: {json.dumps({'debug': {'retrieved_chunks': chunks}})}\n\n"
                         
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
